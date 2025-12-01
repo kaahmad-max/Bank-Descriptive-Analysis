@@ -1,0 +1,152 @@
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r }
+# Load libraries
+library(tidyverse)
+library(caret)
+library(pROC)
+library(cluster)
+library(factoextra)
+library(randomForest)
+
+# Load dataset
+df <- read.csv("bank-full.csv", sep = ",", header = TRUE)
+str(df)
+head(df)
+```
+
+
+```{r }
+# Select relevant columns related to financial records
+financial_features <- c("balance", "housing", "loan", "campaign", "pdays", "previous", "y_1")
+data <- df[, financial_features]
+
+# Convert categorical variables to factors
+data$housing <- as.factor(data$housing)
+data$loan <- as.factor(data$loan)
+data$y_1 <- as.factor(data$y_1)
+
+# Encode categorical variables numerically for modeling
+data$housing <- as.numeric(as.factor(data$housing))
+data$loan <- as.numeric(as.factor(data$loan))
+data$y_1 <- as.numeric(as.factor(data$y_1)) - 1  # convert to 0 and 1
+```
+
+
+```{r }
+# Split into training and test sets
+set.seed(123)
+trainIndex <- createDataPartition(data$y_1, p = 0.7, list = FALSE)
+train <- data[trainIndex, ]
+test <- data[-trainIndex, ]
+
+# Scale numeric columns
+num_cols <- c("balance", "campaign", "pdays", "previous")
+train[, num_cols] <- scale(train[, num_cols])
+test[, num_cols] <- scale(test[, num_cols])
+
+```
+
+
+```{r}
+
+# Logistic Regression Model
+log_model <- glm(y_1 ~ balance + housing + loan + campaign + pdays + previous, 
+                 data = train, family = binomial)
+summary(log_model)
+
+# Predictions
+pred_probs <- predict(log_model, newdata = test, type = "response")
+pred_classes <- ifelse(pred_probs > 0.5, 1, 0)
+
+# Confusion Matrix
+cm <- confusionMatrix(as.factor(pred_classes), as.factor(test$y_1), positive = "1")
+print(cm)
+```
+
+
+
+```{r}
+# K-Means Clustering (Based on financial variables)
+set.seed(42)
+clustering_data <- scale(df[, c("balance", "campaign", "pdays", "previous")])
+kmeans_model <- kmeans(clustering_data, centers = 3, nstart = 25)
+
+# Add cluster info
+df$Cluster <- as.factor(kmeans_model$cluster)
+
+# Visualize clusters
+fviz_cluster(kmeans_model, data = clustering_data, geom = "point",
+             main = "K-Means Clustering on Financial Attributes")
+
+
+# Cluster Summary
+cluster_summary <- df %>%
+  group_by(Cluster) %>%
+  summarise(
+    Avg_Balance = mean(balance),
+    Avg_Campaign = mean(campaign),
+    Avg_Pdays = mean(pdays),
+    Avg_Previous = mean(previous)
+  )
+
+print(cluster_summary)
+```
+
+```{r}
+# Load libraries
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+
+data$y_1 <- factor(data$y_1, levels = c(0, 1), labels = c("No", "Yes"))
+
+#Logistic regression trend plots for numeric variables
+
+# 1️⃣ Balance vs Probability of Subscription
+p1 <- ggplot(data, aes(x = balance, y = as.numeric(y_1) - 1)) +
+  geom_point(alpha = 0.2, color = "#999999") +
+  geom_smooth(method = "glm", method.args = list(family = "binomial"),
+              color = "#0072B2", se = TRUE, fill = "#B3E5FC") +
+  scale_x_continuous(trans = "log1p") +
+  labs(title = "Probability of Subscription vs Balance",
+       x = "Balance (log scale)", y = "Predicted Probability (y_1 = 1)") +
+  theme_minimal()
+p1
+# 2️⃣ Campaign vs Probability of Subscription
+p2 <- ggplot(data, aes(x = campaign, y = as.numeric(y_1) - 1)) +
+  geom_point(alpha = 0.2, color = "#999999") +
+  geom_smooth(method = "glm", method.args = list(family = "binomial"),
+              color = "#E69F00", se = TRUE, fill = "#FFE0B2") +
+  labs(title = "Probability of Subscription vs Campaign Contacts",
+       x = "Number of Campaign Contacts", y = "Predicted Probability") +
+  theme_minimal()
+p2
+# 3️⃣ Pdays vs Probability of Subscription
+p3 <- ggplot(data, aes(x = pdays, y = as.numeric(y_1) - 1)) +
+  geom_point(alpha = 0.2, color = "#999999") +
+  geom_smooth(method = "glm", method.args = list(family = "binomial"),
+              color = "#009E73", se = TRUE, fill = "#C8E6C9") +
+  scale_x_continuous(trans = "log1p") +
+  labs(title = "Probability of Subscription vs Days Since Last Contact",
+       x = "Pdays (log scale)", y = "Predicted Probability") +
+  theme_minimal()
+p3
+# 4️⃣ Previous vs Probability of Subscription
+p4 <- ggplot(data, aes(x = previous, y = as.numeric(y_1) - 1)) +
+  geom_point(alpha = 0.2, color = "#999999") +
+  geom_smooth(method = "glm", method.args = list(family = "binomial"),
+              color = "#D55E00", se = TRUE, fill = "#FFCCBC") +
+  labs(title = "Probability of Subscription vs Previous Contacts",
+       x = "Number of Previous Contacts", y = "Predicted Probability") +
+  theme_minimal()
+p4
+
+
+```
+
+
