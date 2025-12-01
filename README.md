@@ -1,1 +1,1 @@
-The files attached attached explore the various factors that may or may not predict the sucess of a bank's marketing campaign based on varius characteristics of the target customers. 
+The files attached attached are from a project that explores the various factors and their role in predicting the sucess of a bank's marketing campaign. 
